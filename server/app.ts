@@ -23,6 +23,11 @@ export async function createApp() {
     return res.send('pong')
   })
 
+  app.get('/api/search', (req, res) => {
+    console.log('Search query:', req.query.query)
+    return res.send('banana')
+  })
+
   if (isDev) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
