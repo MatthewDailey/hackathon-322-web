@@ -62,7 +62,7 @@ export async function createApp() {
           messages: [
             { 
               role: 'user', 
-              content: `Enhanced search: ${req.query.query as string}` 
+              content: `Enhanced search (provide a very long detailed answer): ${req.query.query as string}` 
             }
           ],
         });
