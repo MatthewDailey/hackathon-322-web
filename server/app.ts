@@ -6,6 +6,7 @@ import express from 'express'
 import cors from 'cors'
 import { createServer as createViteServer } from 'vite'
 import Anthropic from '@anthropic-ai/sdk';
+import * as LaunchDarkly from 'launchdarkly-node-server-sdk';
 
 export async function createApp() {
   const app = express()
@@ -16,6 +17,11 @@ export async function createApp() {
   const anthropic = new Anthropic({
     apiKey: process.env.ANTHROPIC_API_KEY, // Make sure to add this to your environment variables
   });
+
+  // Initialize LaunchDarkly client
+  const ldClient = LaunchDarkly.init(process.env.LAUNCHDARKLY_SDK_KEY as string);
+  await ldClient.waitForInitialization();
+  console.log('LaunchDarkly client initialized');
 
   app.use('/api', cors({
     origin: '*',
@@ -36,26 +42,56 @@ export async function createApp() {
         return res.status(400).json({ error: 'Query parameter is required' });
       }
       
-      const response = await anthropic.messages.create({
-        model: 'claude-3-7-sonnet-latest', // Or your preferred Claude model
-        max_tokens: 1000,
-        messages: [
-          { role: 'user', content: req.query.query as string }
-        ],
-      });
+      // Define user context for LaunchDarkly
+      const user = {
+        kind: 'user',
+        key: (req.query.userId as string) || 'anonymous-user',
+        custom: {
+          queryType: (req.query.type as string) || 'default'
+        }
+      };
       
-      if (response.content[0].type === 'text') {
-        return res.json({
-          answer: response.content[0].text,
-          model: response.model
+      // Check feature flag
+      const useNewSearchBehavior = await ldClient.variation('better-ai-search', user, true);
+      console.log('useNewSearchBehavior', useNewSearchBehavior)
+      if (useNewSearchBehavior) {
+        console.log('Using new search behavior');
+        const response = await anthropic.messages.create({
+          model: 'claude-3-7-sonnet-latest',
+          max_tokens: 1500, // Increased token limit for new behavior
+          messages: [
+            { 
+              role: 'user', 
+              content: `Enhanced search: ${req.query.query as string}` 
+            }
+          ],
         });
+        
+        if (response.content[0].type === 'text') {
+          return res.json({
+            answer: response.content[0].text,
+            model: response.model,
+            version: 'enhanced'
+          });
+        } else {
+          return res.status(500).json({ error: 'Unexpected response format from Claude' });
+        }
       } else {
-        return res.status(500).json({ error: 'Unexpected response format from Claude' });
+        console.log('Using original search behavior');
+        return res.json({
+          answer: "banana",
+          model: "none",
+        });
       }
     } catch (error) {
       console.error('Error querying Claude:', error);
       return res.status(500).json({ error: 'Failed to get response from Claude' });
     }
+  });
+
+  // Cleanup function for LaunchDarkly when the server shuts down
+  process.on('beforeExit', () => {
+    ldClient.close();
   });
 
   if (isDev) {
