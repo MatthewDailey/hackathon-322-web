@@ -22,12 +22,6 @@ npm run check   # TypeScript checks
 npm run format  # Format code with prettier
 ```
 
-## Deploy with Railway
+## Deploy with Render
 
-Create a project and service in [Railway](https://railway.com/) and link it to this project.
-```
-railway link
-npm run deploy 
-```
-
-Alternately, link the service to the Github repo for `main` to be automatically deployed.
+Go to https://dashboard.render.com/ and click "Add a new" -> "Web Service" and select this repo
